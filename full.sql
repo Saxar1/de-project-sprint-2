@@ -1,9 +1,4 @@
 --drop table public.shipping_country_rates cascade;
---drop table shipping_agreement cascade;
---drop table shipping_transfer cascade;
---drop table shipping_info cascade;
---drop table shipping_status cascade;
-
 
 create table public.shipping_country_rates (
 	shipping_country_id serial not null,
@@ -18,6 +13,8 @@ select distinct
 	shipping_country,
 	shipping_country_base_rate
 from public.shipping;
+
+--drop table shipping_agreement cascade;
 
 create table shipping_agreement (
 	agreementid bigint not null,
@@ -36,6 +33,8 @@ select distinct
 	 cast((regexp_split_to_array(sh.vendor_agreement_description, E'\\:+'))[4] as numeric(14,2)) AS agreement_commission
 from public.shipping as sh;
 
+--drop table shipping_transfer cascade;
+
 create table shipping_transfer (
 	transfer_type_id serial not null,
 	transfer_type text null,
@@ -51,6 +50,8 @@ select distinct
 	(regexp_split_to_array(sh.shipping_transfer_description, E'\\:+'))[2] AS transfer_model,
 	sh.shipping_transfer_rate
 from public.shipping as sh;
+
+--drop table shipping_info cascade;
 
 create table shipping_info (
 	shippingid int8 not null,
@@ -90,6 +91,8 @@ join
 	public.shipping_agreement sa
 		on sa.agreementid = cast((regexp_split_to_array(s.vendor_agreement_description, E'\\:+'))[1] as bigint);
 
+--drop table shipping_status cascade;
+
 create table shipping_status (
 	shippingid int8 not null,
 	status text null,
@@ -119,16 +122,16 @@ ship_status_state as (
 shipping_start as (
 	select
 		s.shippingid,
-		s.state_datetime as shipping_start_fact_datetime
+		min(CASE WHEN state = 'booked' THEN s.state_datetime END) AS shipping_start_fact_datetime  	
 	from public.shipping s
-	where s.state = 'booked'
+	group by s.shippingid 
 ),
 shipping_end as (
 	select
 		s.shippingid,
-		s.state_datetime as shipping_end_fact_datetime
+		max(CASE WHEN state = 'recieved' THEN s.state_datetime END) AS shipping_end_fact_datetime
 	from public.shipping s
-	where s.state = 'recieved'
+	group by s.shippingid 
 )
 insert into public.shipping_status
 (shippingid, status, state, shipping_start_fact_datetime, shipping_end_fact_datetime)
@@ -136,6 +139,8 @@ select *
 from ship_status_state
 join shipping_start using(shippingid)
 join shipping_end using(shippingid);
+
+--DROP VIEW shipping_datamart CASCADE;
 
 CREATE OR REPLACE VIEW public.shipping_datamart AS (
 	select distinct
@@ -166,4 +171,5 @@ CREATE OR REPLACE VIEW public.shipping_datamart AS (
 	left join shipping_agreement sa using(agreementid)
 	order by shippingid
 );
+
 
